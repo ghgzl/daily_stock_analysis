@@ -56,4 +56,4 @@ fastapi>=0.109.0            # 现代 Python Web 框架
 uvicorn[standard]>=0.27.0   # ASGI 服务器
 python-multipart>=0.0.6     # FastAPI File/Form upload support
 #缠论czsc库
-czsc>=0.9.40                # 缠论czsc库，用于分型、笔、中枢计算
+czsc==0.9.40                # 缠论czsc库，用于分型、笔、中枢计算
