@@ -50,24 +50,69 @@ report_lines = ["# 批量缠论分析报告（含买卖点+背驰判断）",
 
 
 def get_bars(code, kind, start, end):
-    """个股用 stock_zh_a_hist，指数用 index_zh_a_hist，统一转成 czsc K线"""
+    """获取K线：多数据源自动切换 + 重试，兼容中英文列名
+    个股：stock_zh_a_hist(东财) -> stock_zh_a_daily(新浪)
+    指数：index_zh_a_hist(东财) -> stock_zh_index_daily(新浪)
+    """
+    import time
+    sources = []
     if kind == "index":
-        df = ak.index_zh_a_hist(symbol=code, period="daily",
-                                start_date=start, end_date=end)
+        sources = [
+            ("index_zh_a_hist", lambda: ak.index_zh_a_hist(
+                symbol=code, period="daily", start_date=start, end_date=end)),
+            ("stock_zh_index_daily", lambda: ak.stock_zh_index_daily(
+                symbol=("sh" if code.startswith("000") or code.startswith("60") else "sz") + code)),
+        ]
     else:
-        df = ak.stock_zh_a_hist(symbol=code, period="daily",
-                                start_date=start, end_date=end, adjust="qfq")
-    if df is None or df.empty:
-        return [], df
-    bars = []
-    for i, (_, row) in enumerate(df.iterrows()):
-        bars.append(RawBar(
-            symbol=code, id=i, dt=row["日期"], freq=Freq.D,
-            open=float(row["开盘"]), close=float(row["收盘"]),
-            high=float(row["最高"]), low=float(row["最低"]),
-            vol=float(row["成交量"]), amount=float(row.get("成交额", 0) or 0),
-        ))
-    return bars, df
+        sources = [
+            ("stock_zh_a_hist", lambda: ak.stock_zh_a_hist(
+                symbol=code, period="daily", start_date=start, end_date=end, adjust="qfq")),
+            ("stock_zh_a_daily", lambda: ak.stock_zh_a_daily(
+                symbol=("sh" if code.startswith("6") else "sz") + code,
+                start_date=start[:4] + "-" + start[4:6] + "-" + start[6:], adjust="qfq")),
+        ]
+
+    last_err = None
+    for name, fetcher in sources:
+        for attempt in range(2):
+            try:
+                df = fetcher()
+                if df is None or df.empty:
+                    last_err = f"{name} 返回空数据"
+                    time.sleep(2)
+                    continue
+                # 统一列名
+                df = df.rename(columns={
+                    "日期": "dt", "date": "dt",
+                    "开盘": "open", "open": "open",
+                    "收盘": "close", "close": "close",
+                    "最高": "high", "high": "high",
+                    "最低": "low", "low": "low",
+                    "成交量": "vol", "volume": "vol",
+                    "成交额": "amount", "amount": "amount",
+                })
+                need = ["dt", "open", "close", "high", "low", "vol"]
+                if not all(c in df.columns for c in need):
+                    last_err = f"{name} 列不完整: {list(df.columns)}"
+                    time.sleep(2)
+                    continue
+                bars = []
+                for i, (_, row) in enumerate(df.iterrows()):
+                    bars.append(RawBar(
+                        symbol=code, id=i, dt=row["dt"], freq=Freq.D,
+                        open=float(row["open"]), close=float(row["close"]),
+                        high=float(row["high"]), low=float(row["low"]),
+                        vol=float(row["vol"]), amount=float(row.get("amount", 0) or 0),
+                    ))
+                if len(bars) < 10:
+                    last_err = f"{name} K线不足({len(bars)})"
+                    time.sleep(2)
+                    continue
+                return bars, df
+            except Exception as e:
+                last_err = f"{name} 第{attempt+1}次失败: {type(e).__name__}: {str(e)[:80]}"
+                time.sleep(3)
+    raise ConnectionError(f"所有数据源失败: {last_err}")
 
 
 def check_bei_chi(c):
