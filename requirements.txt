@@ -22,6 +22,7 @@ lark-oapi>=1.0.0             # 飞书API
 # 数据处理
 pandas>=2.0.0               # 数据分析
 numpy>=1.24.0               # 数值计算
+matplotlib>=3.8.0           # 缠论图谱绘制（chan.py 引擎必需）
 json-repair>=0.55.1         # JSON 修复
 
 # AI 分析
@@ -56,4 +57,4 @@ fastapi>=0.109.0            # 现代 Python Web 框架
 uvicorn[standard]>=0.27.0   # ASGI 服务器
 python-multipart>=0.0.6     # FastAPI File/Form upload support
 # 缠论引擎：chan.py（经典纯Python缠论框架），源码已 vendored 在本仓库 chanlib/，无需 pip 安装
-# 依赖 numpy/pandas/matplotlib/requests 已在上述列表，由 chanlib 自动加载
+# 依赖 numpy/pandas/matplotlib/requests 已在上方声明；chanlib 无需 pip 安装
