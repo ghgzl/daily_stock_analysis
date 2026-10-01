@@ -52,6 +52,10 @@ def get_bars_df(code, kind, start, end):
         df["dt"] = pd.to_datetime(df["dt"])
         for c in ["open", "close", "high", "low", "vol"]:
             df[c] = df[c].astype(float)
+        # chan.py 引擎数据校验严格（要求 high>=open/close 且 low<=open/close）
+        # Yahoo/第三方数据偶有 high<close 的情况，此处强制修正，避免 CChanException
+        df["high"] = df[["high", "open", "close"]].max(axis=1)
+        df["low"] = df[["low", "open", "close"]].min(axis=1)
         if "amount" not in df.columns:
             df["amount"] = 0.0
         if len(df) < 10:
