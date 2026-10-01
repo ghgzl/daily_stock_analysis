@@ -54,7 +54,7 @@ jobs:
         run: |
           mkdir -p data logs reports
           
-      - name: 运行czsc批量缠论分析绘图
+      - name: 运行chan.py批量缠论分析绘图
         env:
           # 缠论报告邮件通知
           EMAIL_SENDER: ${{ vars.EMAIL_SENDER || secrets.EMAIL_SENDER }}
