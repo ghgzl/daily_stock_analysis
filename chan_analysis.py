@@ -258,7 +258,7 @@ for name, code, kind in stock_list:
                        f"低{last_bi.low:.2f}/高{last_bi.high:.2f}")
 
         report_lines.append(f"## {name}（{code}）")
-        report_lines.append(f"- 最新收盘价：{df.iloc[-1]['收盘']}")
+        report_lines.append(f"- 最新收盘价：{df.iloc[-1]['close']}")
         report_lines.append(f"- 有效K线数量：{len(bars)}")
         report_lines.append(f"- 笔总数：{len(c.bi_list)} | 中枢总数：{len(zs_list)}")
         report_lines.append(f"- 最新一笔走势：{bi_info}")
