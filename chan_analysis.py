@@ -50,11 +50,65 @@ report_lines = ["# 批量缠论分析报告（含买卖点+背驰判断）",
 
 
 def get_bars(code, kind, start, end):
-    """获取K线：多数据源自动切换 + 重试，兼容中英文列名
-    个股：stock_zh_a_hist(东财) -> stock_zh_a_daily(新浪)
-    指数：index_zh_a_hist(东财) -> stock_zh_index_daily(新浪)
+    """获取K线：yfinance(Yahoo,海外可用) -> akshare东财 -> akshare新浪
+    个股后缀：6xx->.SS，0xx/3xx->.SZ；指数用映射表
     """
     import time
+    import pandas as pd
+    last_err = None
+
+    def norm_rename(df):
+        return df.rename(columns={
+            "日期": "dt", "date": "dt", "Date": "dt",
+            "开盘": "open", "open": "open", "Open": "open",
+            "收盘": "close", "close": "close", "Close": "close",
+            "最高": "high", "high": "high", "High": "high",
+            "最低": "low", "low": "low", "Low": "low",
+            "成交量": "vol", "volume": "vol", "Volume": "vol",
+            "成交额": "amount", "amount": "amount",
+        })
+
+    def to_bars(df):
+        df = norm_rename(df)
+        need = ["dt", "open", "close", "high", "low", "vol"]
+        if not all(c in df.columns for c in need):
+            raise ValueError(f"列不完整: {list(df.columns)}")
+        bars = []
+        for i, (_, row) in enumerate(df.iterrows()):
+            bars.append(RawBar(
+                symbol=code, id=i, dt=pd.Timestamp(row["dt"]), freq=Freq.D,
+                open=float(row["open"]), close=float(row["close"]),
+                high=float(row["high"]), low=float(row["low"]),
+                vol=float(row["vol"]), amount=float(row.get("amount", 0) or 0),
+            ))
+        if len(bars) < 10:
+            raise ValueError(f"K线不足({len(bars)})")
+        return bars, df
+
+    # 1) yfinance (Yahoo) —— GitHub Actions 海外服务器首选
+    try:
+        import yfinance as yf
+        yf_code = None
+        if kind == "index":
+            idx_map = {"000001": "000001.SS", "399001": "399001.SZ",
+                       "399006": "399006.SZ", "000300": "000300.SS", "000016": "000016.SS"}
+            yf_code = idx_map.get(code)
+        else:
+            yf_code = code + (".SS" if code.startswith("6") else ".SZ")
+        if yf_code:
+            start_s = start[:4] + "-" + start[4:6] + "-" + start[6:]
+            end_s = end[:4] + "-" + end[4:6] + "-" + end[6:]
+            df = yf.download(yf_code, start=start_s, end=end_s,
+                             auto_adjust=False, progress=False, threads=False, timeout=20)
+            if df is not None and not df.empty:
+                df = df.reset_index()
+                if hasattr(df.columns, "get_level_values"):
+                    df.columns = df.columns.get_level_values(0)
+                return to_bars(df)
+    except Exception as e:
+        last_err = f"yfinance: {type(e).__name__}: {str(e)[:80]}"
+
+    # 2) akshare 东财 -> 新浪（本地/国内可用）
     sources = []
     if kind == "index":
         sources = [
@@ -72,46 +126,17 @@ def get_bars(code, kind, start, end):
                 start_date=start[:4] + "-" + start[4:6] + "-" + start[6:], adjust="qfq")),
         ]
 
-    last_err = None
     for name, fetcher in sources:
-        for attempt in range(2):
-            try:
-                df = fetcher()
-                if df is None or df.empty:
-                    last_err = f"{name} 返回空数据"
-                    time.sleep(2)
-                    continue
-                # 统一列名
-                df = df.rename(columns={
-                    "日期": "dt", "date": "dt",
-                    "开盘": "open", "open": "open",
-                    "收盘": "close", "close": "close",
-                    "最高": "high", "high": "high",
-                    "最低": "low", "low": "low",
-                    "成交量": "vol", "volume": "vol",
-                    "成交额": "amount", "amount": "amount",
-                })
-                need = ["dt", "open", "close", "high", "low", "vol"]
-                if not all(c in df.columns for c in need):
-                    last_err = f"{name} 列不完整: {list(df.columns)}"
-                    time.sleep(2)
-                    continue
-                bars = []
-                for i, (_, row) in enumerate(df.iterrows()):
-                    bars.append(RawBar(
-                        symbol=code, id=i, dt=row["dt"], freq=Freq.D,
-                        open=float(row["open"]), close=float(row["close"]),
-                        high=float(row["high"]), low=float(row["low"]),
-                        vol=float(row["vol"]), amount=float(row.get("amount", 0) or 0),
-                    ))
-                if len(bars) < 10:
-                    last_err = f"{name} K线不足({len(bars)})"
-                    time.sleep(2)
-                    continue
-                return bars, df
-            except Exception as e:
-                last_err = f"{name} 第{attempt+1}次失败: {type(e).__name__}: {str(e)[:80]}"
-                time.sleep(3)
+        try:
+            df = fetcher()
+            if df is None or df.empty:
+                last_err = f"{name} 返回空数据"
+                continue
+            return to_bars(df)
+        except Exception as e:
+            last_err = f"{name}: {type(e).__name__}: {str(e)[:80]}"
+            time.sleep(2)
+
     raise ConnectionError(f"所有数据源失败: {last_err}")
 
 
