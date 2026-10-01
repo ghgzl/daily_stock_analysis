@@ -55,6 +55,12 @@ jobs:
           mkdir -p data logs reports
           
       - name: 运行czsc批量缠论分析绘图
+        env:
+          # 缠论报告邮件通知
+          EMAIL_SENDER: ${{ vars.EMAIL_SENDER || secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECEIVERS: ${{ vars.EMAIL_RECEIVERS || secrets.EMAIL_RECEIVERS }}
+          EMAIL_SENDER_NAME: ${{ vars.EMAIL_SENDER_NAME || secrets.EMAIL_SENDER_NAME || '股票分析助手' }}
         run: python chan_analysis.py
       
       
