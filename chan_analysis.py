@@ -274,3 +274,72 @@ for name, code, kind in stock_list:
 with open("chan_report.md", "w", encoding="utf-8") as f:
     f.write("\n".join(report_lines))
 print("\n🎉 全部完成：报告 chan_report.md + 图片 chan_img/ 已生成")
+
+
+# ================= 发送缠论报告到邮箱 =================
+def send_report_email():
+    """把 chan_report.md 内容发到配置的邮箱（复用原系统 EMAIL_* 环境变量）"""
+    import os, smtplib
+    from email.mime.text import MIMEText
+    from email.header import Header
+    from email.utils import formataddr
+
+    sender = os.getenv("EMAIL_SENDER", "")
+    password = os.getenv("EMAIL_PASSWORD", "")
+    receivers = os.getenv("EMAIL_RECEIVERS", "")
+    if not (sender and password and receivers):
+        print("⚠️ 未配置 EMAIL_SENDER/EMAIL_PASSWORD/EMAIL_RECEIVERS，跳过邮件发送")
+        return
+
+    with open("chan_report.md", "r", encoding="utf-8") as f:
+        md = f.read()
+
+    # 图片相对路径转 GitHub 绝对链接
+    md = md.replace("](chan_img/", "](https://raw.githubusercontent.com/ghgzl/daily_stock_analysis/main/chan_img/")
+    # Markdown 转 HTML（表格、粗体、标题）
+    try:
+        import markdown2
+        html = markdown2.markdown(md, extras=["tables", "fenced-code-blocks"])
+    except Exception:
+        html = "<pre>" + md.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</pre>"
+
+    html = f"""<html><body style="font-family:-apple-system,Segoe UI,Microsoft YaHei,sans-serif;font-size:14px;line-height:1.7">
+<h2 style="color:#1a56db;border-bottom:2px solid #1a56db;padding-bottom:8px">📈 批量缠论分析报告</h2>
+<p style="color:#888">数据区间：20240101 ~ 最新交易日 ｜ 个股+指数共16个标的</p>
+{html}
+<p style="color:#bbb;font-size:12px;margin-top:24px">— 由 daily_stock_analysis 自动生成 · 缠论分析（czsc）</p>
+</body></html>"""
+
+    # 按发件人域名识别 SMTP 服务器（与原系统一致）
+    domain = sender.split("@")[-1].lower()
+    smtp_map = {
+        "qq.com": ("smtp.qq.com", 465, True), "foxmail.com": ("smtp.qq.com", 465, True),
+        "163.com": ("smtp.163.com", 465, True), "126.com": ("smtp.126.com", 465, True),
+        "gmail.com": ("smtp.gmail.com", 587, False),
+        "outlook.com": ("smtp-mail.outlook.com", 587, False),
+        "hotmail.com": ("smtp-mail.outlook.com", 587, False),
+        "sina.com": ("smtp.sina.com", 465, True), "sohu.com": ("smtp.sohu.com", 465, True),
+    }
+    host, port, ssl = smtp_map.get(domain, (f"smtp.{domain}", 465, True))
+
+    msg = MIMEText(html, "html", "utf-8")
+    msg["Subject"] = Header("缠论分析报告（16标的·买卖点+背驰判断）", "utf-8")
+    msg["From"] = formataddr((os.getenv("EMAIL_SENDER_NAME", "股票分析助手"), sender))
+    msg["To"] = receivers
+
+    try:
+        if ssl:
+            server = smtplib.SMTP_SSL(host, port, timeout=30)
+        else:
+            server = smtplib.SMTP(host, port, timeout=30)
+            server.starttls()
+        server.login(sender, password)
+        recv_list = [r.strip() for r in receivers.split(",") if r.strip()]
+        server.sendmail(sender, recv_list, msg.as_string())
+        server.quit()
+        print(f"✅ 缠论报告已发送到邮箱: {receivers}")
+    except Exception as e:
+        print(f"⚠️ 邮件发送失败: {type(e).__name__}: {str(e)[:120]}（不影响报告文件）")
+
+
+send_report_email()
