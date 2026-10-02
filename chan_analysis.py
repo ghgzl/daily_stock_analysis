@@ -170,9 +170,14 @@ print("\n🎉 全部完成：报告 chan_report.md + 图片 chan_img/ 已生成"
 
 # ================= 发送缠论报告到邮箱 =================
 def send_report_email():
-    """把 chan_report.md 内容发到配置的邮箱（复用原系统 EMAIL_* 环境变量）"""
+    """把 chan_report.md 内容发到配置的邮箱（复用原系统 EMAIL_* 环境变量）
+    K线图采用 CID 内嵌附件方式（图片随邮件发送），不依赖外链，手机邮箱可直接显示
+    """
     import smtplib
+    import re
     from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.image import MIMEImage
     from email.header import Header
     from email.utils import formataddr
 
@@ -186,8 +191,6 @@ def send_report_email():
     with open("chan_report.md", "r", encoding="utf-8") as f:
         md = f.read()
 
-    # 图片相对路径转 GitHub 绝对链接
-    md = md.replace("](chan_img/", "](https://raw.githubusercontent.com/ghgzl/daily_stock_analysis/main/chan_img/")
     # Markdown 转 HTML（表格、粗体、标题）
     try:
         import markdown2
@@ -202,6 +205,29 @@ def send_report_email():
 <p style="color:#bbb;font-size:12px;margin-top:24px">— 由 daily_stock_analysis 自动生成 · 缠论分析（chan.py 经典纯 Python 框架）</p>
 </body></html>"""
 
+    # ---- K线图转为 CID 内嵌（图片随邮件发送，不依赖 GitHub 外链）----
+    msg_root = MIMEMultipart("related")
+    img_files = re.findall(r'chan_img/([^"\')\s]+\.png)', html)
+    seen = set()
+    for i, fname in enumerate(img_files):
+        if fname in seen:
+            continue
+        seen.add(fname)
+        path = os.path.join("chan_img", fname)
+        if not os.path.exists(path):
+            print(f"⚠️ 图片缺失，跳过内嵌: {path}")
+            continue
+        cid = f"kline{i}"
+        with open(path, "rb") as f:
+            img_part = MIMEImage(f.read())
+        img_part.add_header("Content-ID", f"<{cid}>")
+        img_part.add_header("Content-Disposition", "inline", filename=fname)
+        msg_root.attach(img_part)
+        html = html.replace(f'chan_img/{fname}', f'cid:{cid}')  # 图片 src → cid
+        print(f"📎 内嵌图片: {fname}")
+
+    msg_root.attach(MIMEText(html, "html", "utf-8"))
+
     # 按发件人域名识别 SMTP 服务器（与原系统一致）
     domain = sender.split("@")[-1].lower()
     smtp_map = {
@@ -214,10 +240,9 @@ def send_report_email():
     }
     host, port, ssl = smtp_map.get(domain, (f"smtp.{domain}", 465, True))
 
-    msg = MIMEText(html, "html", "utf-8")
-    msg["Subject"] = Header(f"缠论分析报告（chan.py · {len(stock_list)}标的·买卖点+背驰判断）", "utf-8")
-    msg["From"] = formataddr((os.getenv("EMAIL_SENDER_NAME", "股票分析助手"), sender))
-    msg["To"] = receivers
+    msg_root["Subject"] = Header(f"缠论分析报告（chan.py · {len(stock_list)}标的·买卖点+背驰判断）", "utf-8")
+    msg_root["From"] = formataddr((os.getenv("EMAIL_SENDER_NAME", "股票分析助手"), sender))
+    msg_root["To"] = receivers
 
     try:
         if ssl:
@@ -227,9 +252,9 @@ def send_report_email():
             server.starttls()
         server.login(sender, password)
         recv_list = [r.strip() for r in receivers.split(",") if r.strip()]
-        server.sendmail(sender, recv_list, msg.as_string())
+        server.sendmail(sender, recv_list, msg_root.as_string())
         server.quit()
-        print(f"✅ 缠论报告已发送到邮箱: {receivers}")
+        print(f"✅ 缠论报告已发送到邮箱: {receivers}（含 {len(seen)} 张内嵌K线图）")
     except Exception as e:
         print(f"⚠️ 邮件发送失败: {type(e).__name__}: {str(e)[:120]}（不影响报告文件）")
 
