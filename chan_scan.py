@@ -43,29 +43,52 @@ SLEEP_MIN, SLEEP_MAX = 0.1, 0.4                       # 每只股票随机小延
 
 
 def load_universe():
-    """返回 [(代码, 名称), ...]；中证500/沪深300 用 akshare 拉成分股，custom 用逗号代码"""
+    """返回 [(代码, 名称), ...]；中证500/沪深300 用 akshare 拉成分股，custom 用逗号代码
+    兜底：akshare 全部失败时读仓库内置清单（cs500.csv / hs300.csv），保证 GitHub Actions 海外可跑"""
     import akshare as ak
     if SCAN_UNIVERSE.startswith("custom:"):
         codes = [c.strip() for c in SCAN_UNIVERSE.split(":", 1)[1].split(",") if c.strip()]
         return [(c, c) for c in codes]
     symbol = "000905" if SCAN_UNIVERSE == "cs500" else "000300"
     label = "中证500" if SCAN_UNIVERSE == "cs500" else "沪深300"
-    print(f"[股票池] 拉取 {label}({symbol}) 成分股…")
-    # 中证官网接口（稳定）：成分券代码 cons_code / 成分券名称 cons_name
-    for fn in ("index_stock_cons_csindex", "index_stock_cons"):
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "cs500.csv" if SCAN_UNIVERSE == "cs500" else "hs300.csv")
+
+    # 依次尝试 akshare 接口（csindex 官网 → 东财 → 旧接口）
+    for fn in ("index_stock_cons_csindex", "index_stock_cons_em", "index_stock_cons"):
         try:
             df = getattr(ak, fn)(symbol=symbol)
+            if df is None or len(df) == 0:
+                print(f"[股票池] 接口 {fn} 返回空，尝试下一个…")
+                continue
             code_col = next((c for c in ("成分券代码", "代码", "code", "cons_code") if c in df.columns), None)
             name_col = next((c for c in ("成分券名称", "名称", "name", "cons_name") if c in df.columns), None)
             if code_col is None:
+                print(f"[股票池] 接口 {fn} 列名无法识别（{list(df.columns)[:6]}），尝试下一个…")
                 continue
             name_col = name_col or code_col
-            items = [(str(r[code_col]).zfill(6), str(r[name_col])) for r in df.itertuples(index=False)]
-            print(f"[股票池] {label} {len(items)} 只（接口 {fn}）")
+            codes = [str(x).zfill(6) for x in df[code_col].tolist()]
+            names = [str(x) for x in df[name_col].tolist()]
+            items = list(zip(codes, names))
+            print(f"[股票池] {label} {len(items)} 只（akshare 接口 {fn}）")
             return items
         except Exception as e:
             print(f"[股票池] 接口 {fn} 失败：{type(e).__name__}: {str(e)[:100]}，尝试下一个…")
-    raise RuntimeError("无法获取成分股清单（akshare 两个接口都失败）")
+
+    # 兜底：仓库内置清单（离线可靠，海外 runner 也可用）
+    if os.path.exists(csv_path):
+        import csv
+        with open(csv_path, encoding="utf-8-sig") as f:
+            rows = list(csv.DictReader(f))
+        items = []
+        for r in rows:
+            code = str(r.get("成分券代码") or r.get("代码") or r.get("code") or "").zfill(6)
+            name = str(r.get("成分券名称") or r.get("名称") or r.get("name") or code)
+            if code and code != "00000":
+                items.append((code, name))
+        print(f"[股票池] {label} {len(items)} 只（使用仓库内置清单 {os.path.basename(csv_path)}）")
+        return items
+    raise RuntimeError(f"无法获取{label}成分股清单（akshare 接口全部失败且无内置清单）")
 
 
 def is_third_buy(bsp):
