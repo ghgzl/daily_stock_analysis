@@ -23,14 +23,18 @@ DEFAULT_START = "2024-01-01"
 MIN_K_LINES = 600  # 用户要求的提醒阈值
 
 
-# ==================== 数据获取（akshare东财 → yfinance兜底，海外服务器可用） ====================
+# ==================== 数据获取 ====================
 def get_bars_df(code, kind, start, end):
     """获取K线 DataFrame（dt/open/close/high/low/vol/amount）
-    yfinance(Yahoo,海外可用) -> akshare东财 -> akshare新浪
+    数据源顺序由环境变量 CHAN_DATA_SOURCE 控制：
+      auto    = yfinance(Yahoo) -> akshare东财 -> akshare新浪  （默认，GitHub Actions 海外用）
+      akshare = akshare东财 -> akshare新浪 -> yfinance          （国内本机推荐，避免 yahoo 超时）
+      yfinance= 仅 yfinance
     个股后缀：6xx->.SS，0xx/3xx->.SZ；指数用映射表
     """
     import akshare as ak
-    last_err = None
+    source_mode = os.getenv("CHAN_DATA_SOURCE", "auto").lower()
+    errs = []
 
     def norm_rename(df):
         return df.rename(columns={
@@ -62,59 +66,74 @@ def get_bars_df(code, kind, start, end):
             raise ValueError(f"K线不足({len(df)})")
         return df
 
-    # 1) yfinance (Yahoo) —— 海外服务器首选
-    try:
-        import yfinance as yf
-        yf_code = None
-        if kind == "index":
-            idx_map = {"000001": "000001.SS", "399001": "399001.SZ",
-                       "399006": "399006.SZ", "000300": "000300.SS", "000016": "000016.SS"}
-            yf_code = idx_map.get(code)
-        else:
-            yf_code = code + (".SS" if code.startswith("6") else ".SZ")
-        if yf_code:
-            raw = yf.download(yf_code, start=start, end=end,
-                              auto_adjust=False, progress=False, threads=False, timeout=20)
-            if raw is not None and not raw.empty:
-                raw = raw.reset_index()
-                if hasattr(raw.columns, "get_level_values"):
-                    raw.columns = raw.columns.get_level_values(0)
-                return to_df(raw)
-    except Exception as e:
-        last_err = f"yfinance: {type(e).__name__}: {str(e)[:80]}"
-
-    # 2) akshare 东财 -> 新浪（本地/国内可用）
-    start_n = start.replace("-", "")
-    end_n = end.replace("-", "")
-    sources = []
-    if kind == "index":
-        sources = [
-            ("index_zh_a_hist", lambda: ak.index_zh_a_hist(
-                symbol=code, period="daily", start_date=start_n, end_date=end_n)),
-            ("stock_zh_index_daily", lambda: ak.stock_zh_index_daily(
-                symbol=("sh" if code.startswith("000") or code.startswith("60") else "sz") + code)),
-        ]
-    else:
-        sources = [
-            ("stock_zh_a_hist", lambda: ak.stock_zh_a_hist(
-                symbol=code, period="daily", start_date=start_n, end_date=end_n, adjust="qfq")),
-            ("stock_zh_a_daily", lambda: ak.stock_zh_a_daily(
-                symbol=("sh" if code.startswith("6") else "sz") + code,
-                start_date=start, adjust="qfq")),
-        ]
-
-    for name, fetcher in sources:
+    def fetch_yfinance():
+        """成功返回 df，失败返回 None"""
         try:
-            raw = fetcher()
-            if raw is None or raw.empty:
-                last_err = f"{name} 返回空数据"
-                continue
-            return to_df(raw)
+            import yfinance as yf
+            yf_code = None
+            if kind == "index":
+                idx_map = {"000001": "000001.SS", "399001": "399001.SZ",
+                           "399006": "399006.SZ", "000300": "000300.SS", "000016": "000016.SS"}
+                yf_code = idx_map.get(code)
+            else:
+                yf_code = code + (".SS" if code.startswith("6") else ".SZ")
+            if yf_code:
+                raw = yf.download(yf_code, start=start, end=end,
+                                  auto_adjust=False, progress=False, threads=False, timeout=12)
+                if raw is not None and not raw.empty:
+                    raw = raw.reset_index()
+                    if hasattr(raw.columns, "get_level_values"):
+                        raw.columns = raw.columns.get_level_values(0)
+                    return to_df(raw)
         except Exception as e:
-            last_err = f"{name}: {type(e).__name__}: {str(e)[:80]}"
-            time.sleep(2)
+            errs.append(f"yfinance: {type(e).__name__}: {str(e)[:80]}")
+        return None
 
-    raise ConnectionError(f"所有数据源失败: {last_err}")
+    def fetch_akshare():
+        """akshare 东财 -> 新浪；成功返回 df，失败返回 None"""
+        start_n = start.replace("-", "")
+        end_n = end.replace("-", "")
+        sources = []
+        if kind == "index":
+            sources = [
+                ("index_zh_a_hist", lambda: ak.index_zh_a_hist(
+                    symbol=code, period="daily", start_date=start_n, end_date=end_n)),
+                ("stock_zh_index_daily", lambda: ak.stock_zh_index_daily(
+                    symbol=("sh" if code.startswith("000") or code.startswith("60") else "sz") + code)),
+            ]
+        else:
+            sources = [
+                ("stock_zh_a_hist", lambda: ak.stock_zh_a_hist(
+                    symbol=code, period="daily", start_date=start_n, end_date=end_n, adjust="qfq")),
+                ("stock_zh_a_daily", lambda: ak.stock_zh_a_daily(
+                    symbol=("sh" if code.startswith("6") else "sz") + code,
+                    start_date=start, adjust="qfq")),
+            ]
+        for name, fetcher in sources:
+            try:
+                raw = fetcher()
+                if raw is None or raw.empty:
+                    errs.append(f"{name} 返回空数据")
+                    continue
+                return to_df(raw)
+            except Exception as e:
+                errs.append(f"{name}: {type(e).__name__}: {str(e)[:80]}")
+                time.sleep(2)
+        return None
+
+    if source_mode == "akshare":
+        df = fetch_akshare()
+        if df is None:
+            df = fetch_yfinance()
+    elif source_mode == "yfinance":
+        df = fetch_yfinance()
+    else:  # auto：yfinance 优先（海外 Actions 环境）
+        df = fetch_yfinance()
+        if df is None:
+            df = fetch_akshare()
+    if df is None:
+        raise ConnectionError(f"所有数据源失败: {' | '.join(errs[-3:])}")
+    return df
 
 
 # ==================== 缠论判断（复刻原 chan_analysis.py 口径，基于 chan.py 笔结构） ====================

@@ -1,10 +1,15 @@
 @echo off
 chcp 65001 >nul
-title 缠论三买扫描（chan.py）
+title 缠论三买扫描（chan.py · 全A股）
 cd /d "%~dp0"
 
+rem ---- 默认参数（可改 scan.env 覆盖，见 scan.env 末尾注释）----
+set "SCAN_UNIVERSE=all_a"
+set "CHAN_DATA_SOURCE=akshare"
+
 echo ==========================================
-echo   🎯 缠论三类买点扫描（chan.py · 中证500）
+echo   🎯 缠论三类买点扫描（chan.py · 全A股）
+echo   ⏱ 约 5400 只，预计 1~2 小时（8线程）
 echo ==========================================
 echo.
 
@@ -41,8 +46,9 @@ if not exist "scan.env" (
     exit /b 1
 )
 
-echo ✅ 开始扫描中证500（约500只，预计 20~40 分钟）...
-echo   期间窗口会持续滚动日志，完成后自动发邮件并显示结果。
+echo ✅ 开始扫描全部A股（约5400只，预计 1~2 小时）...
+echo   窗口持续滚动日志，完成后自动发邮件并显示结果。
+echo   （中途关窗 = 中断，下次双击自动从断点继续，不会重头来）
 echo.
 python chan_scan.py
 
