@@ -69,12 +69,13 @@ def build_body(watch: Path) -> str:
         for r in top:
             lines.append(
                 f"  [{r.get('strength','?')}] {r.get('event_type','')} {r.get('title','')[:50]}"
-                f" | 方向: {r.get('directions','')[:60]} | 验证: {r.get('verify_status','')}"
+                f" | 方向: {r.get('directions','')[:60]} | 股票: {r.get('stocks','')[:80] or '—'}"
+                f" | 验证: {r.get('verify_status','')}"
             )
         confirm = [r for r in rows if r.get("action") == "可操作"]
         lines.append(f"\n可操作名单（强度+资金验证通过）: {len(confirm)} 条")
         for r in confirm:
-            lines.append(f"  - {r.get('title','')[:60]} → {r.get('verify_signals','')[:80]}")
+            lines.append(f"  - {r.get('title','')[:60]} → 股票: {r.get('stocks','')[:80] or '—'} | {r.get('verify_signals','')[:80]}")
 
     lines.append("\n" + "=" * 40)
     lines.append(f"缠论分析报告: {REPORT_URL}")

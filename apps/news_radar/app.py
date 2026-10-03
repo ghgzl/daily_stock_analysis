@@ -122,12 +122,12 @@ with tab_pool:
         if not df.empty:
             st.dataframe(
                 df[["strength", "event_type", "type_name", "title", "source", "directions",
-                    "verify_status", "action"]].sort_values("strength", ascending=False),
+                    "stocks", "verify_status", "action"]].sort_values("strength", ascending=False),
                 use_container_width=True, hide_index=True)
             confirmed = df[df["action"] == "可操作"]
             if not confirmed.empty:
-                st.success(f"今日可操作名单（强度+资金验证通过）：{len(confirmed)} 只/方向")
-                st.dataframe(confirmed[["title", "directions", "verify_signals", "strength"]],
+                st.success(f"今日可操作名单（强度+资金验证通过）：{len(confirmed)} 条")
+                st.dataframe(confirmed[["title", "directions", "stocks", "verify_signals", "strength"]],
                              use_container_width=True, hide_index=True)
             else:
                 st.info("今日无可操作名单（无事件通过资金验证闸门）。")

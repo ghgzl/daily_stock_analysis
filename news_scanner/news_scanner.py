@@ -49,7 +49,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "watchlist")
 DB_PATH = os.path.join(BASE_DIR, "events.sqlite")
 
 CONFIG: dict = {
-    "fetch_limit": 50,          # 每次抓取快讯条数上限
+    "fetch_limit": 150,         # 每次抓取快讯条数上限（S1 东财 + S2 财联社 合并去重后截断）
     "min_strength_high": 70,    # 高优先级
     "min_strength_pool": 40,    # 入观察池门槛
     "verify_need_hits": 3,      # 验证命中数要求
@@ -132,13 +132,16 @@ def _ak():
 
 
 def fetch_news(limit: int = None) -> List[dict]:
-    """抓取全球财经快讯（多候选接口兜底）。
+    """抓取全球财经快讯（多候选接口兜底 + 合并去重）。
 
+    S1 东方财富·全球财经快讯 为主源，S2 财联社·电报 为补充，
+    两源都尝试，按标题去重后截断到 limit 条。
     返回: [{source, time, title, content}]
     """
     limit = limit or CONFIG["fetch_limit"]
     ak = _ak()
     rows: List[dict] = []
+    seen_titles: set = set()
 
     candidates = [
         ("S1", "stock_info_global_em"),   # 东方财富·全球财经快讯
@@ -148,21 +151,28 @@ def fetch_news(limit: int = None) -> List[dict]:
         try:
             df = getattr(ak, fn)()
             if df is None or df.empty:
+                print(f"[抓取] {source} 无数据(跳过)")
                 continue
             # 兼容不同版本列名
             cols = {str(c): c for c in df.columns}
             t_col = next((cols[c] for c in ("title", "标题") if c in cols), None)
             c_col = next((cols[c] for c in ("content", "内容") if c in cols), None)
             tm_col = next((cols[c] for c in ("time", "时间", "date") if c in cols), None)
+            added = 0
             for _, r in df.head(limit).iterrows():
                 title = str(r[t_col]) if t_col else ""
                 content = str(r[c_col]) if c_col else ""
                 tm = str(r[tm_col]) if tm_col else ""
-                if title or content:
-                    rows.append({"source": source, "time": tm,
-                                 "title": title, "content": content})
-            print(f"[抓取] {source} 成功: {len(rows)} 条")
-            break  # 首个可用信源即可，避免重复量大
+                if not (title or content):
+                    continue
+                key = (title or content)[:40]
+                if key in seen_titles:
+                    continue
+                seen_titles.add(key)
+                rows.append({"source": source, "time": tm,
+                             "title": title, "content": content})
+                added += 1
+            print(f"[抓取] {source} 成功: 新增 {added} 条（去重后）")
         except Exception as e:
             print(f"[抓取] {source} 失败(跳过): {e}")
     return rows[:limit]
@@ -231,6 +241,7 @@ def classify_event(item: dict) -> Optional[dict]:
         "source": item.get("source", "S1"),
         "strength": strength,
         "directions": directions,
+        "stocks": "",               # 方向 → 成分股（main 中映射后填充）
         "verify_status": "未验证",
         "verify_signals": [],
         "action": "观察",
@@ -344,26 +355,43 @@ def db_save(events: List[dict]) -> None:
         conn.execute("""CREATE TABLE IF NOT EXISTS events(
             event_id TEXT PRIMARY KEY, event_time TEXT, event_type TEXT,
             title TEXT, source TEXT, strength REAL, directions TEXT,
-            verify_status TEXT, action TEXT)""")
+            stocks TEXT, verify_status TEXT, action TEXT)""")
+        # 旧表结构无 stocks 列时补列
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(events)")]
+        if "stocks" not in cols:
+            conn.execute("ALTER TABLE events ADD COLUMN stocks TEXT DEFAULT ''")
         for ev in events:
             conn.execute(
-                "INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (ev["event_id"], ev["event_time"], ev["event_type"], ev["title"],
                  ev["source"], ev["strength"], json.dumps(ev["directions"], ensure_ascii=False),
-                 ev["verify_status"], ev["action"]))
+                 ev.get("stocks", ""), ev["verify_status"], ev["action"]))
 
 
 def save_watchlist(events: List[dict]) -> Tuple[str, str]:
+    import csv as _csv
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     today = date.today().strftime("%Y-%m-%d")
     csv_path = os.path.join(OUTPUT_DIR, f"{today}.csv")
     json_path = os.path.join(OUTPUT_DIR, f"{today}.json")
-    with open(csv_path, "w", encoding="utf-8") as f:
-        f.write("event_id,event_time,event_type,type_name,title,source,strength,directions,verify_status,action\n")
+    headers = ["event_id", "event_time", "event_type", "type_name", "title", "source",
+               "strength", "directions", "stocks", "verify_status", "verify_signals", "action"]
+    with open(csv_path, "w", encoding="utf-8", newline="") as f:
+        w = _csv.writer(f)
+        w.writerow(headers)
         for ev in events:
-            f.write(",".join(str(ev.get(k, "")) for k in (
-                "event_id", "event_time", "event_type", "type_name", "title",
-                "source", "strength", "directions", "verify_status", "action")) + "\n")
+            row = [
+                ev.get("event_id", ""), ev.get("event_time", ""),
+                ev.get("event_type", ""), ev.get("type_name", ""),
+                ev.get("title", ""), ev.get("source", ""),
+                ev.get("strength", ""),
+                ";".join(ev.get("directions", []) or []),     # 用 ; 分隔，避免 CSV 逗号错位
+                ev.get("stocks", ""),
+                ev.get("verify_status", ""),
+                ";".join(ev.get("verify_signals", []) or []),
+                ev.get("action", ""),
+            ]
+            w.writerow(row)
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(events, f, ensure_ascii=False, indent=2)
     return csv_path, json_path
@@ -419,6 +447,23 @@ def main() -> None:
         ev = classify_event(it)
         if ev and ev["strength"] >= CONFIG["min_strength_pool"]:
             events.append(ev)
+
+    # A. 方向 → 概念成分股（失败不影响主流程；结果为 "概念:代码1,代码2;概念2:..." 格式）
+    try:
+        stock_map = map_directions_to_stocks(
+            list(dict.fromkeys(d for e in events for d in e.get("directions", []))))
+        for e in events:
+            parts = []
+            for d in e.get("directions", []):
+                codes = stock_map.get(d) or []
+                if codes:
+                    parts.append(f"{d}:{','.join(codes)}")
+            e["stocks"] = "; ".join(parts)
+        mapped = sum(1 for e in events if e.get("stocks"))
+        if mapped:
+            print(f"[映射] 已为 {mapped} 条事件关联概念成分股")
+    except Exception as e:
+        print(f"[映射] 跳过成分股映射: {e}")
 
     events.sort(key=lambda e: -e["strength"])
     high = [e for e in events if e["strength"] >= CONFIG["min_strength_high"]]
