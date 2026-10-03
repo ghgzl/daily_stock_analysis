@@ -1,0 +1,54 @@
+[
+  {
+    "event_id": "e21372d9188b",
+    "event_time": "2026-10-03 08:53:05",
+    "event_type": "E1",
+    "type_name": "政策催化",
+    "title": "“欧盟制造”边界之争折射欧洲产业政策难题",
+    "source": "S1",
+    "strength": 58.0,
+    "directions": [],
+    "verify_status": "未确认",
+    "verify_signals": [],
+    "action": "观察"
+  },
+  {
+    "event_id": "e38145afcefd",
+    "event_time": "2026-10-03 08:53:05",
+    "event_type": "E1",
+    "type_name": "政策催化",
+    "title": "欧洲央行管委内格尔表示：德国经济今年可能增长约1%",
+    "source": "S1",
+    "strength": 58.0,
+    "directions": [],
+    "verify_status": "未确认",
+    "verify_signals": [],
+    "action": "观察"
+  },
+  {
+    "event_id": "25c786abc10b",
+    "event_time": "2026-10-03 08:53:05",
+    "event_type": "E2",
+    "type_name": "产业催化",
+    "title": "西藏措美80兆瓦风电项目首台机组投产发电",
+    "source": "S1",
+    "strength": 44.5,
+    "directions": [],
+    "verify_status": "未确认",
+    "verify_signals": [],
+    "action": "观察"
+  },
+  {
+    "event_id": "73b9e2b0beab",
+    "event_time": "2026-10-03 08:53:05",
+    "event_type": "E2",
+    "type_name": "产业催化",
+    "title": "东芝宣布大举扩产HDD 西部数据、希捷股价重挫",
+    "source": "S1",
+    "strength": 44.5,
+    "directions": [],
+    "verify_status": "未确认",
+    "verify_signals": [],
+    "action": "观察"
+  }
+]
