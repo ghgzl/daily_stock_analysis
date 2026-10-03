@@ -1,0 +1,50 @@
+# news_scanner 每日扫描 + 邮件推送
+# 与 chan_scan.yml 错峰：9:10 / 16:10（北京时间=UTC 1:10 / 8:10），等缠论报告生成后再推
+name: news_scan_email
+
+on:
+  schedule:
+    - cron: '10 1,8 * * 1-5'   # 周一至周五 09:10 / 16:10 北京时间
+  workflow_dispatch:           # 手动触发
+
+permissions:
+  contents: write              # 需要把 watchlist 提交回仓库供 Streamlit 读取
+
+jobs:
+  scan-and-email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install deps
+        run: pip install --quiet akshare pandas
+
+      - name: Run news scanner (词典分类 + 资金验证)
+        run: python news_scanner/news_scanner.py --verify
+        env:
+          TZ: Asia/Shanghai
+
+      - name: Send email report
+        run: python news_scanner/send_email.py
+        env:
+          # SMTP_* 优先；未配置时回退到缠论日报同款 EMAIL_*（QQ 邮箱+授权码）
+          SMTP_HOST: ${{ secrets.SMTP_HOST || 'smtp.qq.com' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '465' }}
+          SMTP_USER: ${{ secrets.SMTP_USER || secrets.EMAIL_SENDER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS || secrets.EMAIL_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO || secrets.EMAIL_RECEIVERS }}
+
+      - name: Commit watchlist back to repo (供 Streamlit 读取)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add news_scanner/watchlist news_scanner/events.sqlite 2>/dev/null || true
+          git commit -m "daily news watchlist $(date -u +%F)" || echo "无变更"
+          git push
