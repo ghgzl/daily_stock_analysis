@@ -1,10 +1,10 @@
 [
   {
-    "event_id": "0f8d21006544",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "5e0b0530be74",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E1",
     "type_name": "政策催化",
-    "title": "美国财政部拍卖三个月期国债得标利率4.0450% 六个月期国债得标利率4.165%",
+    "title": "国家发改委：六张网不只是国家的工程 更是民营企业的舞台",
     "source": "S1",
     "strength": 58.0,
     "directions": [],
@@ -14,11 +14,11 @@
     "action": "观察"
   },
   {
-    "event_id": "3433064dd9bd",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "9f8611d43727",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E1",
     "type_name": "政策催化",
-    "title": "俄财政部将大幅增加外汇和黄金购买量",
+    "title": "法国财政部长：欧元兑美元汇率在1.10水平似乎并未被低估",
     "source": "S1",
     "strength": 58.0,
     "directions": [],
@@ -28,11 +28,11 @@
     "action": "观察"
   },
   {
-    "event_id": "8ae4aef2a9c8",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "b1e1f2c0259e",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E1",
     "type_name": "政策催化",
-    "title": "欧洲央行管委内格尔：目前尚无明确迹象表明通胀已传导至价格和工资设定",
+    "title": "地产股的13天：政策接力之后 万科的账能变好吗？",
     "source": "S1",
     "strength": 58.0,
     "directions": [],
@@ -42,11 +42,27 @@
     "action": "观察"
   },
   {
-    "event_id": "7fb8a5b61f00",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "944715bf2da4",
+    "event_time": "2026-10-06 15:31:38",
+    "event_type": "E1",
+    "type_name": "政策催化",
+    "title": "国庆首日高速公路充电量创历史新高 机构称政策支持下充电桩市场份额有望进一步扩大",
+    "source": "S1",
+    "strength": 58.0,
+    "directions": [
+      "充电桩"
+    ],
+    "stocks": "",
+    "verify_status": "未确认",
+    "verify_signals": [],
+    "action": "观察"
+  },
+  {
+    "event_id": "2073495f2f28",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E2",
     "type_name": "产业催化",
-    "title": "洲际交易所9月日均合约交易量同比增长51%",
+    "title": "三星电机再获2800亿韩元MLCC大单 行业涨价缺货仍在延续 这些公司是三星电机上游供应商",
     "source": "S1",
     "strength": 44.5,
     "directions": [],
@@ -56,11 +72,11 @@
     "action": "观察"
   },
   {
-    "event_id": "0b76531c172d",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "1c69256a74fb",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E2",
     "type_name": "产业催化",
-    "title": "包钢股份完成山东省济滨高铁高速钢轨采购项目全部供货",
+    "title": "三星电机获近2900亿韩元AI服务器MLCC订单",
     "source": "S1",
     "strength": 44.5,
     "directions": [],
@@ -70,11 +86,11 @@
     "action": "观察"
   },
   {
-    "event_id": "ecc1919e8df4",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "44f217128187",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E2",
     "type_name": "产业催化",
-    "title": "鸿海第三季度销售额3.03万亿元台币 同比增长47.1％",
+    "title": "南亚科9月销售额450.9亿元台币 同比增长576.6％",
     "source": "S1",
     "strength": 44.5,
     "directions": [],
@@ -84,11 +100,29 @@
     "action": "观察"
   },
   {
-    "event_id": "5ff48d8b4764",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "ab838779acac",
+    "event_time": "2026-10-06 15:31:38",
+    "event_type": "E2",
+    "type_name": "产业催化",
+    "title": "韩美半导体赢得三星电机245亿韩元订单",
+    "source": "S1",
+    "strength": 44.5,
+    "directions": [
+      "半导体概念",
+      "国产芯片",
+      "先进封装"
+    ],
+    "stocks": "",
+    "verify_status": "未确认",
+    "verify_signals": [],
+    "action": "观察"
+  },
+  {
+    "event_id": "573d8c6b8bcc",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E3",
     "type_name": "并购重组",
-    "title": "物流公司C.H. Robinson将以每股17.25美元现金加股票收购RXO",
+    "title": "伯克希尔哈撒韦在10月1日至2日期间收购了约15028股莱纳公司B类股票",
     "source": "S1",
     "strength": 41.5,
     "directions": [],
@@ -98,11 +132,11 @@
     "action": "观察"
   },
   {
-    "event_id": "8ee4507f2789",
-    "event_time": "2026-10-06 01:07:05",
+    "event_id": "982cdac54dca",
+    "event_time": "2026-10-06 15:31:38",
     "event_type": "E3",
     "type_name": "并购重组",
-    "title": "加拿大能源公司Cenovus：将以每股12.00加元的现金加股票方式收购Athabasca Oil",
+    "title": "工业软件业巨震！施耐德电气宣布史上最大收购：逾200亿美元吞下PTC",
     "source": "S1",
     "strength": 41.5,
     "directions": [],
